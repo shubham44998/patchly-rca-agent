@@ -13,10 +13,9 @@ import logging
 from datetime import datetime
 from typing import Any
 
-# langchain 1.x imports (via langchain-classic)
-from langchain_classic.agents import AgentExecutor, create_tool_calling_agent, create_react_agent
-from langchain_classic.memory import ConversationBufferMemory
-from langchain_classic.tools import tool
+from langchain.agents import AgentExecutor, create_tool_calling_agent, create_react_agent
+from langchain.memory import ConversationBufferMemory
+from langchain.tools import tool
 
 from config import LLM, INGESTION, SYSTEM_TOOLS, MCP_SERVERS, RCA
 from agent.llm_factory import get_llm
