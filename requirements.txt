@@ -28,4 +28,4 @@ langchain-google-genai>=1.0.0  # for gemini
 # ── MCP support (optional) ────────────────────────────────────
 # langchain-mcp-adapters>=0.1.0
 # mcp>=1.0.0
-langraph>=1.1.10
+langgraph>=1.1.10
