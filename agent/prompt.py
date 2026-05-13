@@ -1,19 +1,11 @@
 """
-agent/prompt.py — RCA Agent Prompts
-Compatible with: langchain-core==0.2.38
+agent/prompt.py — RCA Agent System Prompt
+Compatible with: langgraph>=1.0, langchain-core>=1.0
 
-Two prompt builders:
-  build_tool_calling_prompt() — for OpenAI/Anthropic (create_tool_calling_agent)
-  build_react_prompt()        — for Ollama (create_react_agent), no hub needed
-
-The RCA investigation methodology and output format are embedded in both.
+LangGraph's create_react_agent accepts a plain string as the system prompt.
 """
 
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
-
-
-# ── Shared RCA methodology text ───────────────────────────────
-_RCA_METHODOLOGY = """
+SYSTEM_PROMPT = """
 You are a Senior Site Reliability Engineer (SRE) with 15+ years of experience in production incident investigation.
 Your ONLY job is to determine the precise ROOT CAUSE of production incidents — not symptoms, not guesses.
 
@@ -73,59 +65,7 @@ If confidence is LOW, state what additional evidence you need.
 Never fabricate evidence. If root cause is unclear, say so.
 """
 
-# ── Prompt for tool-calling agents (OpenAI, Anthropic, Azure) ─
-def build_tool_calling_prompt() -> ChatPromptTemplate:
-    """
-    For use with create_tool_calling_agent.
-    Compatible with langchain-core 0.2.x ChatPromptTemplate.
-    """
-    return ChatPromptTemplate.from_messages([
-        ("system", _RCA_METHODOLOGY),
-        MessagesPlaceholder(variable_name="chat_history", optional=True),
-        ("human", "{input}"),
-        MessagesPlaceholder(variable_name="agent_scratchpad"),
-    ])
 
-
-# ── ReAct prompt for Ollama (no hub.pull needed) ──────────────
-_REACT_TEMPLATE = _RCA_METHODOLOGY + """
-
-You have access to the following tools:
-{tools}
-
-Use the following format EXACTLY:
-
-Question: the input question you must answer
-Thought: think about what to investigate next
-Action: the action to take, must be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-... (repeat Thought/Action/Action Input/Observation as needed)
-Thought: I now have enough evidence to write the RCA report.
-Final Answer: [full RCA report in the mandatory format above]
-
-Begin!
-
-Question: {input}
-Thought:{agent_scratchpad}"""
-
-
-def build_react_prompt() -> PromptTemplate:
-    """
-    For use with create_react_agent (Ollama / open-source LLMs).
-    Does NOT require hub.pull — fully self-contained.
-    Compatible with langchain 0.2.x.
-    """
-    return PromptTemplate.from_template(_REACT_TEMPLATE)
-
-
-# ── Auto-select based on provider ────────────────────────────
-def build_prompt(provider: str):
-    """
-    Returns the right prompt for the given LLM provider.
-    Ollama → ReAct PromptTemplate
-    Others → tool-calling ChatPromptTemplate
-    """
-    if provider.lower() == "ollama":
-        return build_react_prompt()
-    return build_tool_calling_prompt()
+def build_prompt(provider: str = "") -> str:
+    """Returns the system prompt string for LangGraph create_react_agent."""
+    return SYSTEM_PROMPT

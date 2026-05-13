@@ -1,10 +1,9 @@
 """
 agent/rca_agent.py — RCA Agent Orchestrator
-Compatible with: langchain==0.2.16, langchain-core==0.2.38, langchain-ollama==0.1.3
+Compatible with: langchain>=1.0, langchain-core>=1.0, langgraph>=1.0
 
-Selects the right agent factory based on LLM provider:
-  Ollama          → create_react_agent         (text-based ReAct, local prompt)
-  OpenAI / others → create_tool_calling_agent  (native function calling)
+Uses LangGraph's prebuilt ReAct agent (create_react_agent) which works
+for ALL providers — Ollama, OpenAI, Anthropic, Azure OpenAI.
 """
 
 import os
@@ -13,11 +12,10 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from langchain.agents import AgentExecutor, create_tool_calling_agent, create_react_agent
-from langchain.memory import ConversationBufferMemory
-from langchain.tools import tool
+from langchain_core.tools import tool
+from langgraph.prebuilt import create_react_agent
 
-from config import LLM, INGESTION, SYSTEM_TOOLS, MCP_SERVERS, RCA
+from config import LLM, INGESTION, MCP_SERVERS, RCA
 from agent.llm_factory import get_llm
 from agent.prompt import build_prompt
 from ingestion import ingest, Incident, IngestionError
@@ -31,14 +29,14 @@ from tools.analysis_tools import (
     analyze_log_file, analyze_metrics,
     correlate_errors_across_logs, reconstruct_timeline,
 )
-from mcp import load_mcp_tools  # noqa: E402 — optional, gracefully degrades
+from mcp import load_mcp_tools
 
 logger = logging.getLogger(__name__)
 
-# ── Build LLM ─────────────────────────────────────────────────
+# ── Build LLM + prompt ────────────────────────────────────────
 llm      = get_llm(LLM)
 provider = LLM["provider"].lower()
-prompt   = build_prompt(provider)    # ReAct for ollama, tool-calling for others
+prompt   = build_prompt(provider)
 
 
 # ── Ingestion tool ────────────────────────────────────────────
@@ -67,22 +65,12 @@ def ingest_incident(identifier: str) -> str:
 # ── All tools ─────────────────────────────────────────────────
 _CORE_TOOLS = [
     ingest_incident,
-    # Log & metrics analysis
-    analyze_log_file,
-    analyze_metrics,
-    correlate_errors_across_logs,
-    reconstruct_timeline,
-    # System diagnostics
-    run_shell_command,
-    check_process_state,
-    check_disk_and_memory,
-    check_network_connections,
-    tail_log_file,
-    grep_log,
-    check_docker_state,
-    check_kubernetes_state,
-    check_git_history,
-    run_db_query,
+    analyze_log_file, analyze_metrics,
+    correlate_errors_across_logs, reconstruct_timeline,
+    run_shell_command, check_process_state, check_disk_and_memory,
+    check_network_connections, tail_log_file, grep_log,
+    check_docker_state, check_kubernetes_state,
+    check_git_history, run_db_query,
 ]
 
 _mcp_tools = load_mcp_tools(MCP_SERVERS)
@@ -93,36 +81,13 @@ logger.info(
     f"tools={len(_CORE_TOOLS)} core + {len(_mcp_tools)} MCP"
 )
 
-
-# ── Pick the right agent factory ─────────────────────────────
-# langchain 0.2.x:
-#   create_react_agent        → works with ALL LLMs (text-based tool use)
-#   create_tool_calling_agent → works with LLMs that support native function calling
-#                               (OpenAI, Anthropic, Azure OpenAI, some Ollama models)
-#
-# For Ollama we use ReAct because not all local models support function calling reliably.
-# For OpenAI / Anthropic we use tool-calling for better reliability and fewer tokens.
-
-if provider == "ollama":
-    # ReAct requires: input, tools, tool_names, agent_scratchpad
-    _agent = create_react_agent(llm, ALL_TOOLS, prompt)
-else:
-    # Tool-calling requires: input, agent_scratchpad (+ optional chat_history)
-    _agent = create_tool_calling_agent(llm, ALL_TOOLS, prompt)
-
-_executor = AgentExecutor(
-    agent=_agent,
+# ── Build LangGraph ReAct agent ───────────────────────────────
+# langgraph create_react_agent works with all LLM providers
+# and replaces the old AgentExecutor pattern
+_agent = create_react_agent(
+    model=llm,
     tools=ALL_TOOLS,
-    memory=ConversationBufferMemory(
-        memory_key="chat_history",
-        return_messages=True,
-    ),
-    verbose=True,
-    max_iterations=RCA.get("max_investigation_steps", 15),
-    handle_parsing_errors=True,
-    return_intermediate_steps=True,
-    # Ollama can be slow — give it more time
-    max_execution_time=300 if provider == "ollama" else 120,
+    prompt=prompt,
 )
 
 
@@ -205,10 +170,11 @@ def run_rca(input_str: str, source_override: str = None) -> dict:
     if source_override:
         query = f"[source:{source_override}] {input_str}"
 
-    result  = _executor.invoke({"input": query})
-    report  = _report_to_text(result["output"])
-    n_steps = len(result.get("intermediate_steps", []))
-    saved   = _save_report(report)
+    result   = _agent.invoke({"messages": [("human", query)]})
+    messages = result.get("messages", [])
+    report   = _report_to_text(messages[-1]) if messages else "No output from agent."
+    n_steps  = sum(1 for m in messages if getattr(m, "type", "") == "tool")
+    saved    = _save_report(report)
 
     return {
         "rca_report":   report,
