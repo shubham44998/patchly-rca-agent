@@ -1,5 +1,5 @@
 """
-ingestion.py — Incident ingestion and normalisation.
+ingestion/ingestion.py — Incident ingestion and normalisation.
 
 Supports three source types (auto-detected):
   log_file      — absolute path to a log file

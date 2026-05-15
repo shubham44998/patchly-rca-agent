@@ -11,8 +11,12 @@ __pycache__/
 dist/
 build/
 
-# Reports output
-rca_reports/
+# IDE temp files
+tempCodeRunnerFile.py
+
+# Reports output — track folder, not contents
+rca_reports/*
+!rca_reports/.gitkeep
 
 # Virtual environments
 .venv/

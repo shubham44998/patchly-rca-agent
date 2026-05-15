@@ -15,21 +15,21 @@ from typing import Any
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
-from config import LLM, INGESTION, MCP_SERVERS, RCA
-from agent.llm_factory import get_llm
-from agent.prompt import build_prompt
-from ingestion import ingest, Incident, IngestionError
-from tools.system_tools import (
+from patchly_rca.config import LLM, INGESTION, MCP_SERVERS, RCA
+from patchly_rca.agent.llm_factory import get_llm
+from patchly_rca.agent.prompt import build_prompt
+from patchly_rca.ingestion import ingest, Incident, IngestionError
+from patchly_rca.tools.system_tools import (
     run_shell_command, check_process_state, check_disk_and_memory,
     check_network_connections, tail_log_file, grep_log,
     check_docker_state, check_kubernetes_state,
     check_git_history, run_db_query,
 )
-from tools.analysis_tools import (
+from patchly_rca.tools.analysis_tools import (
     analyze_log_file, analyze_metrics,
     correlate_errors_across_logs, reconstruct_timeline,
 )
-from mcp import load_mcp_tools
+from patchly_rca.mcp_loader import load_mcp_tools
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +82,6 @@ logger.info(
 )
 
 # ── Build LangGraph ReAct agent ───────────────────────────────
-# langgraph create_react_agent works with all LLM providers
-# and replaces the old AgentExecutor pattern
 _agent = create_react_agent(
     model=llm,
     tools=ALL_TOOLS,
@@ -160,11 +158,6 @@ def run_rca(input_str: str, source_override: str = None) -> dict:
             provider:     str — LLM used,
             report_saved: str — path to saved report file,
         }
-
-    Examples:
-        run_rca("/var/log/payment/error.log")
-        run_rca("CRITICAL: payment-service down. DB pool exhausted.")
-        run_rca('{"text": "API 503", "service": "checkout", "error_rate": "98%"}')
     """
     query = input_str
     if source_override:

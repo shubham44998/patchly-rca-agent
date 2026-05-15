@@ -112,7 +112,7 @@ if page == "Analyze Incident":
                 data = resp.json()
 
             except httpx.ConnectError:
-                st.error("Cannot connect to API. Is `uvicorn api.main:app` running?")
+                st.error("Cannot connect to API. Start it with: `python main.py api` or `python -m uvicorn patchly_rca.api.main:app --reload`")
                 st.stop()
             except Exception as e:
                 st.error(f"Request failed: {e}")
