@@ -1,23 +1,30 @@
 """
-main.py — RCA Agent CLI
+main.py — Patchly RCA Agent entry point
 
-Usage:
-    python main.py                           # interactive prompt
-    python main.py --log /var/log/app.log    # analyse a log file
-    python main.py --text "payment svc down" # analyse text alert
-    python main.py --file alert.txt          # read alert from file
+CLI usage:
+  python main.py                           # interactive prompt
+  python main.py --log /var/log/app.log    # analyse a log file
+  python main.py --text "payment svc down" # analyse text alert
+  python main.py --file alert.txt          # read alert from file
+
+Server usage:
+  python main.py api        # start FastAPI on port 8000
+  python main.py ui         # start Streamlit on port 8501
+  python main.py both       # start both (API in background thread)
 """
 
 import argparse
 import sys
+import subprocess
+import threading
 import logging
 
 logging.basicConfig(
-    level=logging.WARNING,                   # suppress LangChain internals
+    level=logging.WARNING,
     format="%(levelname)s %(name)s: %(message)s"
 )
 
-from agent import run_rca
+from patchly_rca.agent import run_rca
 
 
 def _print_banner():
@@ -29,7 +36,7 @@ def _print_banner():
 """)
 
 
-def _run(input_str: str, source: str = None):
+def _run_rca(input_str: str, source: str = None):
     print(f"\n🔍 Investigating...\n")
     result = run_rca(input_str, source_override=source)
 
@@ -43,32 +50,53 @@ def _run(input_str: str, source: str = None):
     print()
 
 
+def _start_api():
+    subprocess.run([sys.executable, "-m", "uvicorn", "patchly_rca.api.main:app", "--reload", "--port", "8000"])
+
+
+def _start_ui():
+    subprocess.run([sys.executable, "-m", "streamlit", "run", "ui/app.py"])
+
+
 def main():
-    parser = argparse.ArgumentParser(description="RCA Agent — Root Cause Analysis")
+    parser = argparse.ArgumentParser(description="Patchly RCA Agent")
+    parser.add_argument("command", nargs="?", help="api | ui | both (starts servers)")
     parser.add_argument("--log",  help="Path to log file")
     parser.add_argument("--text", help="Incident text / alert message")
     parser.add_argument("--file", help="Path to text file containing the alert")
     args = parser.parse_args()
 
+    # ── Server mode ───────────────────────────────────────────
+    if args.command == "api":
+        _start_api()
+        return
+    if args.command == "ui":
+        _start_ui()
+        return
+    if args.command == "both":
+        threading.Thread(target=_start_api, daemon=True).start()
+        _start_ui()
+        return
+
+    # ── CLI / RCA mode ────────────────────────────────────────
     _print_banner()
 
     if args.log:
-        _run(args.log, source="log_file")
+        _run_rca(args.log, source="log_file")
 
     elif args.text:
-        _run(args.text, source="text_message")
+        _run_rca(args.text, source="text_message")
 
     elif args.file:
         try:
             with open(args.file) as f:
                 content = f.read().strip()
-            _run(content)
+            _run_rca(content)
         except FileNotFoundError:
             print(f"File not found: {args.file}")
             sys.exit(1)
 
     else:
-        # Interactive mode
         print("Enter your incident (log file path, alert text, or JSON payload).")
         print("Type END on a new line when done.\n")
         lines = []
@@ -86,7 +114,7 @@ def main():
             print("No input provided. Exiting.")
             sys.exit(0)
 
-        _run(input_str)
+        _run_rca(input_str)
 
 
 if __name__ == "__main__":

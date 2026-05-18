@@ -10,7 +10,7 @@ Endpoints:
   DELETE /reports/{report_id} — delete a saved report
 
 Run:
-  uvicorn api.main:app --reload --port 8000
+  uvicorn patchly_rca.api.main:app --reload --port 8000
 """
 
 import os
@@ -24,8 +24,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, RedirectResponse
 from pydantic import BaseModel
 
-from agent import run_rca
-from config import RCA
+from patchly_rca.agent import run_rca
+from patchly_rca.config import RCA
 
 app = FastAPI(
     title="Patchly RCA Agent",
@@ -47,7 +47,7 @@ _OUTPUT_DIR = RCA.get("output_dir", "/tmp/rca_reports")
 
 class AnalyzeRequest(BaseModel):
     input: str
-    source: str | None = None   # "text_message" | "log_file" | None (auto)
+    source: str | None = None
 
 
 class AnalyzeResponse(BaseModel):

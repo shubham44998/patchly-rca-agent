@@ -19,7 +19,6 @@ _TIMESTAMP_RE  = re.compile(r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2})")
 _HTTP_RE       = re.compile(r"\b(4\d{2}|5\d{2})\b")
 _ERROR_KWS     = ["ERROR", "FATAL", "CRITICAL", "Exception", "Traceback", "panic:"]
 
-# Metrics thresholds and their RCA implication
 _METRIC_THRESHOLDS = {
     "cpu_pct":              (85,  "critical", "CPU saturation — runaway process or insufficient capacity"),
     "memory_pct":           (88,  "critical", "Memory pressure — OOM risk, GC thrashing, or leak"),
@@ -184,7 +183,7 @@ def reconstruct_timeline(log_paths_csv: str) -> str:
 
     events.sort(key=lambda x: x[0])
     parts = [f"=== Unified Error Timeline ({len(events)} events) ===\n"]
-    for ts, svc, msg in events[-40:]:   # last 40 events
+    for ts, svc, msg in events[-40:]:
         parts.append(f"  {ts}  [{svc}]  {msg}")
     return "\n".join(parts)
 

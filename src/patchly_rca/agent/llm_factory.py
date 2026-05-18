@@ -12,13 +12,11 @@ def get_llm(cfg: dict) -> BaseChatModel:
     provider = cfg["provider"].lower()
 
     if provider == "ollama":
-        # langchain-ollama==0.1.3 — ChatOllama import path
         from langchain_ollama import ChatOllama
         return ChatOllama(
             model=cfg.get("model", "llama3"),
             base_url=cfg.get("base_url", "http://localhost:11434"),
             temperature=cfg.get("temperature", 0.0),
-            # num_predict replaces max_tokens in ollama 0.1.x
             num_predict=cfg.get("max_tokens", 4096),
         )
 

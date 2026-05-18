@@ -17,7 +17,7 @@ Destructive commands (rm, kill, etc.) are blocked unless explicitly enabled.
 import subprocess
 import shlex
 from langchain.tools import tool
-from config import SYSTEM_TOOLS
+from patchly_rca.config import SYSTEM_TOOLS
 
 
 _DESTRUCTIVE = {"rm", "kill", "pkill", "killall", "shutdown", "reboot",
@@ -32,12 +32,10 @@ def _run(cmd: str) -> str:
 
     binary = parts[0]
 
-    # Destructive check
     if binary in _DESTRUCTIVE and not SYSTEM_TOOLS.get("allow_destructive"):
         return (f"Command '{binary}' is blocked (destructive). "
                 "Set allow_destructive=True in config to enable.")
 
-    # Whitelist check
     allowed = SYSTEM_TOOLS.get("allowed_commands", [])
     if allowed and binary not in allowed:
         return (f"Command '{binary}' is not in the allowed_commands whitelist. "
@@ -84,11 +82,9 @@ def check_process_state(service_name: str) -> str:
     Input: service or process name (e.g. 'nginx', 'postgres', 'payment-service').
     Returns: matching ps output + systemctl status if available.
     """
-    ps_out   = _run(f"ps aux")
-    # filter to relevant rows
-    lines    = [l for l in ps_out.splitlines() if service_name.lower() in l.lower()]
+    ps_out    = _run(f"ps aux")
+    lines     = [l for l in ps_out.splitlines() if service_name.lower() in l.lower()]
     ps_result = "\n".join(lines) if lines else f"No process matching '{service_name}' found."
-
     systemctl = _run(f"systemctl status {service_name} --no-pager -l")
     return f"=== ps output ===\n{ps_result}\n\n=== systemctl ===\n{systemctl}"
 
@@ -123,9 +119,9 @@ def tail_log_file(log_path_and_lines: str) -> str:
     Input format: '/path/to/file.log' or '/path/to/file.log|200' (pipe-separated path and line count).
     Returns: last N lines of the log (default 100).
     """
-    parts    = log_path_and_lines.split("|")
-    path     = parts[0].strip()
-    n        = parts[1].strip() if len(parts) > 1 else "100"
+    parts = log_path_and_lines.split("|")
+    path  = parts[0].strip()
+    n     = parts[1].strip() if len(parts) > 1 else "100"
     return _run(f"tail -n {n} {path}")
 
 
@@ -167,11 +163,11 @@ def check_kubernetes_state(namespace_or_pod: str = "default") -> str:
     """
     if "/" in namespace_or_pod:
         ns, pod = namespace_or_pod.split("/", 1)
-        pods   = _run(f"kubectl get pods -n {ns} | grep {pod}")
-        desc   = _run(f"kubectl describe pod {pod} -n {ns}")
-        logs   = _run(f"kubectl logs {pod} -n {ns} --tail=50")
+        pods    = _run(f"kubectl get pods -n {ns} | grep {pod}")
+        desc    = _run(f"kubectl describe pod {pod} -n {ns}")
+        logs    = _run(f"kubectl logs {pod} -n {ns} --tail=50")
         return f"=== pods ===\n{pods}\n\n=== describe ===\n{desc}\n\n=== logs ===\n{logs}"
-    ns = namespace_or_pod
+    ns     = namespace_or_pod
     pods   = _run(f"kubectl get pods -n {ns}")
     events = _run(f"kubectl get events -n {ns} --sort-by=.metadata.creationTimestamp | tail -20")
     return f"=== pods ===\n{pods}\n\n=== events ===\n{events}"
@@ -185,10 +181,10 @@ def check_git_history(repo_and_count: str = ".|10") -> str:
     Example: '/srv/app|20'
     Returns: last N git log entries with author, timestamp, and message.
     """
-    parts  = repo_and_count.split("|")
-    repo   = parts[0].strip() or "."
-    n      = parts[1].strip() if len(parts) > 1 else "10"
-    cmd    = f"git -C {repo} log --oneline --format='%h %ai %an — %s' -{n}"
+    parts = repo_and_count.split("|")
+    repo  = parts[0].strip() or "."
+    n     = parts[1].strip() if len(parts) > 1 else "10"
+    cmd   = f"git -C {repo} log --oneline --format='%h %ai %an — %s' -{n}"
     return _run(cmd)
 
 
@@ -198,7 +194,7 @@ def run_db_query(query: str) -> str:
     Run a read-only diagnostic SQL query against a local database.
     Input format: 'db_type|connection|SQL'
     Examples:
-      'psql|postgresql://user:pass@localhost/mydb|SELECT count(*) FROM pg_stat_activity WHERE state=\'active\''
+      'psql|postgresql://user:pass@localhost/mydb|SELECT count(*) FROM pg_stat_activity WHERE state=\\'active\\''
       'mysql|mysql -u root mydb|SHOW PROCESSLIST'
     Returns: query result or error.
     WARNING: Only SELECT / SHOW / EXPLAIN queries are permitted.
@@ -209,7 +205,6 @@ def run_db_query(query: str) -> str:
 
     db_type, conn, sql = parts[0].strip(), parts[1].strip(), parts[2].strip()
 
-    # Safety: only allow read-only statements
     sql_upper = sql.strip().upper()
     if not any(sql_upper.startswith(kw) for kw in ("SELECT", "SHOW", "EXPLAIN", "DESCRIBE")):
         return "Only SELECT / SHOW / EXPLAIN / DESCRIBE queries are allowed."

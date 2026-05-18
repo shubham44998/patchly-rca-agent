@@ -1,5 +1,5 @@
 """
-mcp.py — Optional MCP (Model Context Protocol) tool loader.
+mcp_loader/mcp.py — Optional MCP (Model Context Protocol) tool loader.
 
 Loads MCP server tools when enabled in settings.
 Requires: pip install langchain-mcp-adapters mcp
