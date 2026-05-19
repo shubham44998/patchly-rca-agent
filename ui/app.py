@@ -132,10 +132,13 @@ if page == "Analyze Incident":
         token_usage = data.get("token_usage", {})
         if token_usage.get("total_tokens"):
             col4.metric("Total Tokens", f"{token_usage['total_tokens']:,}")
+        else:
+            col4.metric("Total Tokens", "N/A")
         
         if token_usage.get("total_tokens"):
+            estimated_note = " (estimated)" if token_usage.get("estimated") else ""
             st.caption(
-                f"🔢 Token Usage: {token_usage['prompt_tokens']:,} prompt + "
+                f"🔢 Token Usage{estimated_note}: {token_usage['prompt_tokens']:,} prompt + "
                 f"{token_usage['completion_tokens']:,} completion = "
                 f"{token_usage['total_tokens']:,} total ({token_usage['llm_calls']} LLM calls)"
             )

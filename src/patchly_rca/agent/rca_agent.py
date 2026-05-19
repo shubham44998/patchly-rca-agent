@@ -33,6 +33,7 @@ from patchly_rca.tools.analysis_tools import (
 from patchly_rca.mcp_loader import load_mcp_tools
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 # ── Build LLM + prompt ────────────────────────────────────────
 llm      = get_llm(LLM)
