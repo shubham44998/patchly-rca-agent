@@ -18,6 +18,7 @@ from langgraph.prebuilt import create_react_agent
 from patchly_rca.config import LLM, INGESTION, MCP_SERVERS, RCA
 from patchly_rca.agent.llm_factory import get_llm
 from patchly_rca.agent.prompt import build_prompt
+from patchly_rca.agent.token_tracker import TokenTracker
 from patchly_rca.ingestion import ingest, Incident, IngestionError
 from patchly_rca.tools.system_tools import (
     run_shell_command, check_process_state, check_disk_and_memory,
@@ -80,6 +81,9 @@ logger.info(
     f"RCA Agent | provider={provider} | model={LLM.get('model')} | "
     f"tools={len(_CORE_TOOLS)} core + {len(_mcp_tools)} MCP"
 )
+
+# ── Token tracker ─────────────────────────────────────────────
+_token_tracker = TokenTracker()
 
 # ── Build LangGraph ReAct agent ───────────────────────────────
 _agent = create_react_agent(
@@ -153,17 +157,22 @@ def run_rca(input_str: str, source_override: str = None) -> dict:
 
     Returns:
         {
-            rca_report:   str — full structured RCA report,
-            steps_taken:  int — number of tool calls made,
-            provider:     str — LLM used,
-            report_saved: str — path to saved report file,
+            rca_report:      str — full structured RCA report,
+            steps_taken:     int — number of tool calls made,
+            provider:        str — LLM used,
+            report_saved:    str — path to saved report file,
+            token_usage:     dict — token consumption statistics,
         }
     """
     query = input_str
     if source_override:
         query = f"[source:{source_override}] {input_str}"
 
-    result   = _agent.invoke({"messages": [("human", query)]})
+    _token_tracker.reset()
+    result   = _agent.invoke(
+        {"messages": [("human", query)]},
+        config={"callbacks": [_token_tracker]}
+    )
     messages = result.get("messages", [])
     report   = _report_to_text(messages[-1]) if messages else "No output from agent."
     n_steps  = sum(1 for m in messages if getattr(m, "type", "") == "tool")
@@ -174,6 +183,7 @@ def run_rca(input_str: str, source_override: str = None) -> dict:
         "steps_taken":  n_steps,
         "provider":     f"{LLM['provider']}/{LLM.get('model', 'default')}",
         "report_saved": saved,
+        "token_usage":  _token_tracker.get_usage(),
     }
 
 

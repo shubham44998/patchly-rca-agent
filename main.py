@@ -45,6 +45,13 @@ def _run_rca(input_str: str, source: str = None):
     print("═" * 64)
     print(f"\n  Steps taken : {result['steps_taken']}")
     print(f"  LLM         : {result['provider']}")
+    
+    token_usage = result.get("token_usage", {})
+    if token_usage.get("total_tokens"):
+        print(f"  Tokens      : {token_usage['total_tokens']} total "
+              f"({token_usage['prompt_tokens']} prompt + {token_usage['completion_tokens']} completion)")
+        print(f"  LLM calls   : {token_usage['llm_calls']}")
+    
     if result.get("report_saved"):
         print(f"  Report saved: {result['report_saved']}")
     print()
