@@ -56,6 +56,7 @@ class AnalyzeResponse(BaseModel):
     provider:     str
     report_saved: str
     timestamp:    str
+    token_usage:  dict
 
 
 class ReportMeta(BaseModel):
@@ -118,6 +119,7 @@ def analyze(req: AnalyzeRequest):
         provider     = result["provider"],
         report_saved = result.get("report_saved", ""),
         timestamp    = datetime.utcnow().isoformat(),
+        token_usage  = result.get("token_usage", {}),
     )
 
 
@@ -135,7 +137,7 @@ async def analyze_stream(input: str, source: str | None = None):
             None, lambda: run_rca(input, source_override=source)
         )
 
-        yield _sse("steps", {"steps_taken": result["steps_taken"], "provider": result["provider"]})
+        yield _sse("steps", {"steps_taken": result["steps_taken"], "provider": result["provider"], "token_usage": result.get("token_usage", {})})
         yield _sse("report", {"rca_report": result["rca_report"], "report_saved": result.get("report_saved", "")})
         yield _sse("done", {"message": "Investigation complete"})
 
@@ -165,6 +167,7 @@ async def analyze_upload(file: UploadFile = File(...)):
         provider     = result["provider"],
         report_saved = result.get("report_saved", ""),
         timestamp    = datetime.utcnow().isoformat(),
+        token_usage  = result.get("token_usage", {}),
     )
 
 

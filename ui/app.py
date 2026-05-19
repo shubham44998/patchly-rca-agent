@@ -32,7 +32,10 @@ with st.sidebar:
     st.caption(f"API: `{API_URL}`")
     try:
         r = httpx.get(f"{API_URL}/health", timeout=2)
-        st.success("API online ✓") if r.status_code == 200 else st.error("API error")
+        if r.status_code == 200:
+            st.success("API online ✓")
+        else:
+            st.error("API error")
     except Exception:
         st.error("API offline ✗")
 
@@ -121,10 +124,24 @@ if page == "Analyze Incident":
         # ── Display result ────────────────────────────────────
         st.success("Investigation complete!")
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         col1.metric("Steps Taken", data["steps_taken"])
         col2.metric("LLM Provider", data["provider"])
         col3.metric("Timestamp", data["timestamp"][:19].replace("T", " "))
+        
+        token_usage = data.get("token_usage", {})
+        if token_usage.get("total_tokens"):
+            col4.metric("Total Tokens", f"{token_usage['total_tokens']:,}")
+        else:
+            col4.metric("Total Tokens", "N/A")
+        
+        if token_usage.get("total_tokens"):
+            estimated_note = " (estimated)" if token_usage.get("estimated") else ""
+            st.caption(
+                f"🔢 Token Usage{estimated_note}: {token_usage['prompt_tokens']:,} prompt + "
+                f"{token_usage['completion_tokens']:,} completion = "
+                f"{token_usage['total_tokens']:,} total ({token_usage['llm_calls']} LLM calls)"
+            )
 
         st.divider()
         st.subheader("📋 RCA Report")
