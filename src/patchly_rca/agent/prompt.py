@@ -38,9 +38,8 @@ ROOT CAUSE vs SYMPTOMS:
 
 MANDATORY OUTPUT FORMAT — always end with this exact structure:
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RCA REPORT  [Incident ID]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 INCIDENT SUMMARY
   • What: [one sentence]  • When: [timestamp]  • Where: [service]  • Impact: [scope]
 
@@ -60,7 +59,7 @@ IMMEDIATE FIX    [what to do RIGHT NOW]
 PERMANENT FIX    1. [specific code/config change]  2. [change]
 DETECTION GAPS   [what alert/test was missing]
 PREVENTION       1. [monitoring/alerting improvement]  2. [process change]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 If confidence is LOW, state what additional evidence you need.
 Never fabricate evidence. If root cause is unclear, say so.
 """

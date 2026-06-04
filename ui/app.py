@@ -130,18 +130,16 @@ if page == "Analyze Incident":
         col3.metric("Timestamp", data["timestamp"][:19].replace("T", " "))
         
         token_usage = data.get("token_usage", {})
-        if token_usage.get("total_tokens"):
+        if "total_tokens" in token_usage:
             col4.metric("Total Tokens", f"{token_usage['total_tokens']:,}")
-        else:
-            col4.metric("Total Tokens", "N/A")
-        
-        if token_usage.get("total_tokens"):
             estimated_note = " (estimated)" if token_usage.get("estimated") else ""
             st.caption(
                 f"🔢 Token Usage{estimated_note}: {token_usage['prompt_tokens']:,} prompt + "
                 f"{token_usage['completion_tokens']:,} completion = "
                 f"{token_usage['total_tokens']:,} total ({token_usage['llm_calls']} LLM calls)"
             )
+        else:
+            col4.metric("Total Tokens", "N/A")
 
         st.divider()
         st.subheader("📋 RCA Report")
