@@ -30,15 +30,22 @@ from patchly_rca.tools.analysis_tools import (
     analyze_log_file, analyze_metrics,
     correlate_errors_across_logs, reconstruct_timeline,
 )
+from patchly_rca.tools.stack_trace_analyzer import (
+    analyze_stack_trace, extract_error_context,
+)
 from patchly_rca.mcp_loader import load_mcp_tools
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 # ── Build LLM + prompt ────────────────────────────────────────
-llm      = get_llm(LLM)
+_base_llm = get_llm(LLM)
 provider = LLM["provider"].lower()
 prompt   = build_prompt(provider)
+
+# Wrap LLM with token tracking callback
+_token_tracker = TokenTracker()
+llm = _base_llm.with_config(callbacks=[_token_tracker])
 
 
 # ── Ingestion tool ────────────────────────────────────────────
@@ -67,6 +74,7 @@ def ingest_incident(identifier: str) -> str:
 # ── All tools ─────────────────────────────────────────────────
 _CORE_TOOLS = [
     ingest_incident,
+    extract_error_context, analyze_stack_trace,  # New context extraction tools
     analyze_log_file, analyze_metrics,
     correlate_errors_across_logs, reconstruct_timeline,
     run_shell_command, check_process_state, check_disk_and_memory,
@@ -83,9 +91,6 @@ logger.info(
     f"tools={len(_CORE_TOOLS)} core + {len(_mcp_tools)} MCP"
 )
 
-# ── Token tracker ─────────────────────────────────────────────
-_token_tracker = TokenTracker()
-
 # ── Build LangGraph ReAct agent ───────────────────────────────
 _agent = create_react_agent(
     model=llm,
@@ -98,29 +103,53 @@ _agent = create_react_agent(
 def _report_to_text(report: Any) -> str:
     """Convert common LLM/LangChain output shapes into report text."""
     if report is None:
-        return ""
+        return "No report generated."
     if isinstance(report, str):
         return report
     if isinstance(report, bytes):
         return report.decode("utf-8", errors="replace")
 
-    content = getattr(report, "content", None)
-    if content is not None:
-        return _report_to_text(content)
-
+    # Handle list of content blocks (Anthropic/Gemini format)
     if isinstance(report, list):
-        parts = []
+        text_parts = []
         for item in report:
             if isinstance(item, dict):
                 if "text" in item:
-                    parts.append(_report_to_text(item["text"]))
+                    text_parts.append(str(item["text"]))
                 elif "content" in item:
-                    parts.append(_report_to_text(item["content"]))
-                else:
-                    parts.append(json.dumps(item, ensure_ascii=False))
-            else:
-                parts.append(_report_to_text(item))
-        return "\n".join(part for part in parts if part)
+                    extracted = _report_to_text(item["content"])
+                    if extracted:
+                        text_parts.append(extracted)
+            elif hasattr(item, "content"):
+                extracted = _report_to_text(item.content)
+                if extracted:
+                    text_parts.append(extracted)
+            elif isinstance(item, str):
+                text_parts.append(item)
+        result = "\n".join(text_parts)
+        if result:
+            return result
+    
+    # Try to extract content attribute
+    if hasattr(report, "content"):
+        content = report.content
+        if isinstance(content, str):
+            return content
+        elif isinstance(content, list):
+            return _report_to_text(content)
+        elif content:
+            return str(content)
+    
+    # Try __dict__
+    if hasattr(report, "__dict__") and "content" in report.__dict__:
+        return _report_to_text(report.__dict__["content"])
+    
+    # Try kwargs
+    if hasattr(report, "kwargs") and "content" in report.kwargs:
+        return _report_to_text(report.kwargs["content"])
+    
+    if hasattr(report, "text"):
+        return _report_to_text(report.text)
 
     if isinstance(report, dict):
         if "text" in report:
@@ -129,7 +158,6 @@ def _report_to_text(report: Any) -> str:
             return _report_to_text(report["content"])
         if "output" in report:
             return _report_to_text(report["output"])
-        return json.dumps(report, ensure_ascii=False, indent=2)
 
     return str(report)
 
@@ -170,12 +198,25 @@ def run_rca(input_str: str, source_override: str = None) -> dict:
         query = f"[source:{source_override}] {input_str}"
 
     _token_tracker.reset()
-    result   = _agent.invoke(
+    logger.info("[RCA] Starting investigation...")
+    
+    result = _agent.invoke(
         {"messages": [("human", query)]},
         config={"callbacks": [_token_tracker]}
     )
     messages = result.get("messages", [])
-    report   = _report_to_text(messages[-1]) if messages else "No output from agent."
+    
+    if not messages:
+        logger.warning("Agent returned no messages")
+        report = "No output from agent - check logs for errors."
+    else:
+        last_msg = messages[-1]
+        report = _report_to_text(last_msg)
+        
+        if not report or report.strip() == "":
+            logger.warning(f"Failed to extract text from message type: {type(last_msg).__name__}")
+            report = f"Agent completed but produced no text output. Message type: {type(last_msg).__name__}"
+    
     n_steps  = sum(1 for m in messages if getattr(m, "type", "") == "tool")
     saved    = _save_report(report)
 

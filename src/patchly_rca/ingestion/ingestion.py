@@ -81,12 +81,47 @@ def ingest(identifier: str, cfg: dict) -> Incident:
             raise IngestionError(f"Invalid JSON payload: {e}")
         txt_cfg = cfg.get("text_message", {})
         inc_id  = _next_id(txt_cfg.get("id_prefix", "INC"), txt_cfg.get("counter_file", "/tmp/rca_txt_counter.txt"))
+        
+        # Extract structured context from common fields
+        summary_parts = []
+        metadata = {}
+        
+        # Build detailed summary from available fields
+        if "error_type" in data or "error_message" in data:
+            error_type = data.get("error_type", "Exception")
+            error_msg = data.get("error_message", "")
+            summary_parts.append(f"{error_type}: {error_msg}")
+        
+        if "service_name" in data:
+            summary_parts.append(f"in {data['service_name']}")
+            metadata["service"] = data["service_name"]
+        
+        if "method" in data:
+            summary_parts.append(f"at {data['method']}")
+            metadata["method"] = data["method"]
+        
+        if "endpoint" in data:
+            metadata["endpoint"] = data["endpoint"]
+        
+        if "environment" in data:
+            metadata["environment"] = data["environment"]
+        
+        # Extract other metadata
+        for k, v in data.items():
+            if k not in ("text", "summary", "message", "error_type", "error_message", 
+                        "service_name", "method", "endpoint", "environment", "stack_trace"):
+                metadata[k] = str(v)
+        
+        summary = " ".join(summary_parts) if summary_parts else (
+            data.get("text") or data.get("summary") or data.get("message") or "JSON payload"
+        )
+        
         return Incident(
             id=inc_id,
             source="json_payload",
             raw=identifier,
-            summary=data.get("text") or data.get("summary") or data.get("message") or "JSON payload",
-            metadata={k: str(v) for k, v in data.items() if k not in ("text", "summary", "message")},
+            summary=summary,
+            metadata=metadata,
         )
 
     # text_message

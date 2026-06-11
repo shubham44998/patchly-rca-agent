@@ -35,6 +35,9 @@ LLM = {
 
     # Google Gemini
     "gemini_key": os.getenv("GEMINI_API_KEY", ""),
+
+    # Groq
+    "groq_key": os.getenv("GROQ_API_KEY", ""),
 }
 
 # ── Ingestion ─────────────────────────────────────────────────

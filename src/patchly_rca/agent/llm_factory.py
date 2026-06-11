@@ -69,8 +69,20 @@ def get_llm(cfg: dict) -> BaseChatModel:
             max_output_tokens=cfg.get("max_tokens", 4096),
         )
 
+    elif provider == "groq":
+        try:
+            from langchain_groq import ChatGroq
+        except ImportError:
+            raise ImportError("Run: pip install langchain-groq")
+        return ChatGroq(
+            model=cfg.get("model", "llama-3.3-70b-versatile"),
+            groq_api_key=cfg.get("groq_key", cfg.get("api_key", "")),
+            temperature=cfg.get("temperature", 0.0),
+            max_tokens=cfg.get("max_tokens", 4096),
+        )
+
     else:
         raise ValueError(
             f"Unknown LLM provider: '{provider}'. "
-            "Options: ollama | openai | azure_openai | anthropic | gemini"
+            "Options: ollama | openai | azure_openai | anthropic | gemini | groq"
         )
